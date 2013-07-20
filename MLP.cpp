@@ -11,11 +11,13 @@ using namespace std;
 int numOfElement , numOfTestCase;
 //#define trainingSet = "train.inp";
 //#define testSet = "test.inp";
+double **desiredOut;
 
 class CBackProp{
 
 //	output of each neuron
 	double **out;
+
 
 //	delta error value for each neuron
 	double **delta;
@@ -66,6 +68,8 @@ class CBackProp{
 
 // read test set from file
     void testedSet(double** , const char*);
+
+    int maxResult();
 };
 
 
@@ -133,17 +137,6 @@ CBackProp::CBackProp(int nl,int *sz,double b,double a):beta(b),alpha(a)
 			for(int k=0;k<lsize[i-1]+1;k++)
 				prevDwt[i][j][k]=(double)0.0;
 
-// Note that the following variables are unused,
-//
-// delta[0]
-// weight[0]
-// prevDwt[0]
-
-//  I did this intentionaly to maintains consistancy in numbering the layers.
-//  Since for a net having n layers, input layer is refered to as 0th layer,
-//  first hidden layer as 1st layer and the nth layer as output layer. And
-//  first (0th) layer just stores the inputs hence there is no delta or weigth
-//  values corresponding to it.
 }
 
 
@@ -186,6 +179,10 @@ double CBackProp::sigmoid(double in)
 {
 		return (double)(1/(1+exp(-in)));
 }
+
+/*double CBackProp::purelin(double s){
+    return s;
+}*/
 
 //	mean square error
 double CBackProp::mse(double *tgt) const
@@ -277,8 +274,19 @@ void CBackProp::bpgt(double *in,double *tgt)
 	}
 }
 
+int CBackProp::maxResult(){
+    double likely = Out(0);
+    int index = 0;
+    for (int i = 1 ; i < 10 ; i++)
+        if (likely < Out(i)){
+            likely = Out(i);
+            index = i;
+        }
+    return index;
+}
+
 void trainedSet(double **&data , const char* fileName){
-    int i , j;
+    int i , j,x;
     ifstream fin ;
     fin.open(fileName);
     if (!fin.is_open()){
@@ -286,14 +294,17 @@ void trainedSet(double **&data , const char* fileName){
         exit(1);
     }
     fin >> numOfElement;
+    desiredOut = new double*[numOfElement];
     data = new double*[numOfElement];
     for (i = 0 ; i < numOfElement ; i ++){
         data[i] = new double[101];
+        desiredOut[i] = new double[10];
     }
     for (i = 0 ; i < numOfElement ; i ++){
         for (j = 0 ; j < 100 ; j ++)
             fin >> data[i][j];
-        fin >> data[i][j];
+        fin >> x;
+        desiredOut[i][x] = 1;
     }
 }
 
@@ -319,9 +330,10 @@ void testedSet(double **&testSet , const char* fileName){
 int main(int argc, char* argv[])
 {
 
-	int i;
+	long i;
 	double **trainData;
 	double **testData;
+	int result;
     ofstream fout;
     fout.open("result.out");
     if (!fout.is_open()){
@@ -330,10 +342,11 @@ int main(int argc, char* argv[])
     }
 	trainedSet(trainData,"trainingSet.inp");
 	testedSet(testData,"testingSet.inp");
+
 	// defining a net with 4 layers having 3,3,2, and 1 neuron respectively,
 	// the first layer is input layer i.e. simply holder for the input parameters
 	// and has to be the same size as the no of input parameters, in out example 3
-	int numLayers = 4, lSz[4] = {3,3,2,1};
+	int numLayers = 4, lSz[4] = {101,4,3,10};
 
 
 	// Learing rate - beta
@@ -343,7 +356,7 @@ int main(int argc, char* argv[])
 
 
 	// maximum no of iterations during training
-	long num_iter = 2000000;
+	long num_iter = 200000;
 
 
 	// Creating the net
@@ -353,33 +366,34 @@ int main(int argc, char* argv[])
 	for (i=0; i<num_iter ; i++)
 	{
 
-		bp->bpgt(trainData[i%numOfElement], &trainData[i%numOfElement][100]);
+		bp->bpgt(trainData[i%numOfElement], desiredOut[i%numOfElement]);
 
-		if( bp->mse(&trainData[i%numOfElement][100]) < Thresh) {
+		if( bp->mse(desiredOut[i%numOfElement]) < Thresh) {
 			cout << endl << "Network Trained. Threshold value achieved in " << i << " iterations." << endl;
-			cout << "MSE:  " << bp->mse(&trainData[i%numOfElement][100])
+			cout << "MSE:  " << bp->mse(desiredOut[i%numOfElement])
 				 <<  endl <<  endl;
 			break;
 		}
 		if ( i%(num_iter/10) == 0 )
-			cout<<  endl <<  "MSE:  " << bp->mse(&trainData[i%numOfElement][100])
+			cout<<  endl <<  "MSE:  " << bp->mse(desiredOut[i%numOfElement])
 				<< "... Training..." << endl;
-
 	}
 
 	if ( i == num_iter )
-		cout << endl << i << " iterations completed..."
-		<< "MSE: " << bp->mse(&trainData[(i-1)%numOfElement][100]) << endl;
+		cout << endl << i << " iterations completed..."<< endl;
 
 	cout<< "Now using the trained network to make predctions on test data...." << endl << endl;
 	for ( i = 0 ; i < numOfTestCase ; i++ )
 	{
 		bp->ffwd(testData[i]);
-		fout <<  bp->Out(0) << endl;
+		result = bp->maxResult();
+		fout << result << endl;
 	}
 	system("pause");
 	return 0;
 }
+
+
 
 
 
